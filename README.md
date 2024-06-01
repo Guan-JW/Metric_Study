@@ -35,7 +35,7 @@ Run the tests as follows:
 python NB201_ImageNet.py \
         --task acc_loss \               # Indicate which set of criteria to compare
         --rounds 1000 \                 # The number of repetitions for each comparison
-        --max_iters 20 50 81 120 150 \  # The budget constraint R for Hyperband
+        --max_iters 50 81 \  # The budget constraint R for Hyperband
         --eta 3                         # The filtering ratio for Hyperband
 ```
 
@@ -50,13 +50,13 @@ cd Tests/
 python wilcoxon.py \                    # Wilcoxon signed-rank test
         --task acc_loss \               # Indicate which set of criteria to compare
         --dataset ImageNet \            # Benchmark name
-        --max_iters 50 81 120 150 \  # The budget constraint R for Hyperband
+        --max_iters 50 81 \  # The budget constraint R for Hyperband
         --eta 3                         # The filtering ratio for Hyperband
 
 python wtl.py \                         # Count the wins/ties/losses
         --task acc_loss \               
         --dataset ImageNet \            
-        --max_iters 50 81 160 180 \  
+        --max_iters 50 81\  
         --eta 3                         
 ```
 
