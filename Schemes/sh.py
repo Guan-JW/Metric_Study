@@ -228,6 +228,17 @@ class SuccessiveHalving:
 		serialized_config_dict[f's_{s}'] = T
 		return serialized_config_dict
 	
+	def get_fixed_int_config_dict(self):
+		if not self.fixed_config_dict:
+			raise ValueError("config_dict is empty.")
+		serialized_config_dict = dict()
+		for s in reversed( range(self.skip_first, self.s_max + 1 )):
+			T = []
+			for config in self.fixed_config_dict[f's_{s}']:
+				T.append(str(config))
+			serialized_config_dict[f's_{s}'] = T
+		return serialized_config_dict
+	
 	def load_fixed_config_dict(self, file_path, config_space):
 		with open(file_path, "r") as json_file:
 			loaded_configuration_dict = json.load(json_file)
@@ -237,6 +248,17 @@ class SuccessiveHalving:
 		for config in loaded_configuration_dict[f's_{s}']:
 			T.append(CS.Configuration(config_space, values=config))
 		self.fixed_config_dict[f's_{s}'] = T
+
+	def load_fixed_int_config_dict(self, file_path):
+		print(f"{file_path=}")
+		with open(file_path, "r") as json_file:
+			loaded_configuration_dict = json.load(json_file)
+		self.fixed_config_dict = dict()
+		for s in reversed( range(self.skip_first, self.s_max + 1 )):
+			T = []
+			for config in loaded_configuration_dict[f's_{s}']:
+				T.append(int(config))
+			self.fixed_config_dict[f's_{s}'] = T
 
 	def get_fixed_config_dict_lcbench(self):
 		if not self.fixed_config_dict:

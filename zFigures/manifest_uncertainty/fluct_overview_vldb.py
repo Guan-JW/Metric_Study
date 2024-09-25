@@ -1,9 +1,8 @@
-import sys
+import sys, os
 sys.path.append("../../")
 import argparse
 import json
-import numpy as np
-# from utils import *
+import numpy as np, pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm  # Import the color map module
 from mpl_toolkits.axes_grid1.inset_locator import mark_inset
@@ -16,7 +15,7 @@ args = parser.parse_args()
 
 dataset = args.dataset
 
-fig, axs = plt.subplots(3, 1, figsize=(6,4.8))
+fig, axs = plt.subplots(2, 1, figsize=(6,3.2))
 
 plt.rcParams["legend.markerscale"] = 3
 
@@ -34,25 +33,20 @@ color_palette = cm.get_cmap('tab20', num_lines)
 line_colors = color_palette(range(num_lines))
 
 winsize = 5
-point_num = 1000
-datasets = ['ImageNet-16-120', 'CIFAR-10', 'CIFAR-100']
+point_num = 800
+datasets = ['ImageNet', 'Cifar10', 'Cifar100']
 markers = ['o', 'v', '*']
-for i, save_dict in enumerate([save_dict_image, save_dict_cifar10, save_dict_cifar100]):
+dir_path = '/home/SSD/HPO/Empirical_study/StageTrack/rst'
+for i, d in enumerate(datasets):
+    df_test_loss = pd.read_csv(os.path.join(dir_path, d, 'test_loss.csv'))
+    df_valid_loss = pd.read_csv(os.path.join(dir_path, d, 'val_loss.csv'))
+
     final_valid_loss = np.zeros(point_num)
     valid_fluctuation = np.zeros(point_num)
-    for s in range(point_num):
-        final_valid_loss[s] = save_dict[str(s)]['test_loss_777']
-        fluct = np.zeros(30)
-        for epoch in range(21, 51):
-            fluct[epoch-21] = abs(save_dict[str(s)]['valid_losses_777'][epoch] - save_dict[str(s)]['valid_losses_777'][epoch-1])
-        # print(final_valid_loss[-1], np.mean(fluct))
-        valid_fluctuation[s] = np.mean(fluct)
-        # print(np.where(valid_fluctuation < 3))
-    axs[2].scatter(final_valid_loss[np.where(valid_fluctuation < 3)], valid_fluctuation[np.where(valid_fluctuation < 3)], 
-                   s=1.5, alpha=0.5, label=datasets[i])
-
-axs[2].legend(handlelength=0.1, labelspacing=0, borderpad=0.3, columnspacing=0.3)
-
+    for i in range(point_num):
+        s = i + 10
+        final_valid_loss[i] = df_test_loss.iloc[s, -1]
+        valid_fluctuation[i] = np.std(df_valid_loss.iloc[s, 1: 1+10].values)
 
 axins1 = axs[1].inset_axes((0.68, 0.38, 0.3, 0.6))
 axins2 = axs[0].inset_axes((0.68, 0.38, 0.3, 0.6))
@@ -107,8 +101,6 @@ axs[1].set_ylabel('Validation \n loss', fontsize=fontsize)
 axs[1].set_xlabel('Epoch')
 axs[0].set_ylabel('Validation \n loss', fontsize=fontsize)
 axs[0].set_xlabel('Epoch')
-axs[2].set_ylabel("Validation loss \n fluctuation", fontsize=fontsize)
-axs[2].set_xlabel("Final test loss")
 
 axins1.set_xlim(xlim0, xlim1)
 axins1.set_ylim(ylim0, ylim1)
@@ -124,8 +116,7 @@ mark_inset(axs[0], axins2, loc1=2, loc2=4, fc="none", ec='k', lw=1, alpha=0.7)
 
 axs[1].set_title('(b) Validation loss curve', y=-0.8)
 axs[0].set_title('(a) Losses across random seeds', y=-0.8)
-axs[2].set_title('(c) Early-stage fluctuation vs. capacity', y=-0.8)
 
-plt.subplots_adjust(left=0.11, right=0.98, top=0.98, bottom=0.14, hspace=0.8)
+plt.subplots_adjust(left=0.11, right=0.99, top=0.98, bottom=0.2, hspace=0.8)
 plt.savefig(f'fluct_overview_{dataset}_vldb.png')
 plt.savefig(f'fluct_overview_{dataset}_vldb.pdf')

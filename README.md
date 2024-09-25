@@ -8,7 +8,7 @@ All the code used for empirical experiments, significance tests, and visualizati
 ## Installation
 
 ### Benchmark Setup
-1. Nas-Bench-201
+1. Nas-Bench-201 and HPOBench
     
     We make use of the high-level APIs defined in [HPOBench](https://github.com/automl/HPOBench) to access Nas-Bench-201. Here, we provide straightforward instructions on how to install it:
     ```bash

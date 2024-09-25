@@ -1,5 +1,88 @@
+from curses import window
 import math
+import numpy as np
 from multiprocessing import Value
+
+def rolling_window(a, window):
+    shape = (a.size - window + 1, window)
+    strides = a.strides * 2
+    return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
+
+def get_derivative_std_stage(config_curve_dict: dict, window_size: int, 
+                             converge_threshold=1e-5):
+    valid_loss = np.array(config_curve_dict["valid_loss"])
+    train_loss = np.array(config_curve_dict["train_loss"])
+    if valid_loss.shape[0] < window_size + 1:
+        # initial time. use training loss first
+        # * 2, for stds to fit poly functions
+        return 1  # return as stage 1.
+    
+    # calculate rolling window stds.
+    valid_roll_windows = rolling_window(valid_loss, window_size)
+    train_roll_windows = rolling_window(train_loss, window_size)
+    # calculate stds.
+    valid_std_devs = np.std(valid_roll_windows, axis=1)
+    train_std_devs = np.std(train_roll_windows, axis=1)
+
+    # poly fit
+    # Fit a polynomial of degree 2
+    loss_epochs = np.arange(valid_loss.shape[0])
+    std_xs = np.arange(valid_std_devs.shape[0])
+    valid_loss_coefs = np.polyfit(loss_epochs, valid_loss, 2)
+    train_loss_coefs = np.polyfit(loss_epochs, train_loss, 2)
+    valid_stds_coefs = np.polyfit(std_xs, valid_std_devs, 2)
+    train_stds_coefs = np.polyfit(std_xs, train_std_devs, 2)
+
+    valid_loss_p = np.poly1d(valid_loss_coefs)
+    train_loss_p = np.poly1d(train_loss_coefs)
+    valid_stds_p = np.poly1d(valid_stds_coefs)
+    train_stds_p = np.poly1d(train_stds_coefs)
+    
+    # derivative
+    valid_loss_p_prime = valid_loss_p.deriv()
+    train_loss_p_prime = train_loss_p.deriv()
+    valid_stds_p_prime = valid_stds_p.deriv()
+    train_stds_p_prime = train_stds_p.deriv()
+
+    # get derivatives for the most recent window of epochs
+    loss_start = max(0, loss_epochs[-1] + 1 - window_size)
+    loss_end = loss_epochs[-1]
+    loss_length = loss_end - loss_start + 1
+    valid_loss_derives_cnt = np.zeros(loss_length)
+    train_loss_derives_cnt = np.zeros(loss_length)
+    for i in range(loss_start, loss_end + 1):
+        valid_loss_derives_cnt[i-loss_start] = valid_loss_p_prime(i)
+        train_loss_derives_cnt[i-loss_start] = train_loss_p_prime(i)
+
+    # get derivatives for the most recent 2 of windows
+    stds_start = max(0, std_xs[-1] + 1 - 2)
+    stds_end = std_xs[-1]
+    stds_length = stds_end - stds_start + 1
+    valid_stds_derives_cnt = np.zeros(stds_length)
+    train_stds_derives_cnt = np.zeros(stds_length)
+    for i in range(stds_start, stds_end + 1):
+        valid_stds_derives_cnt[i-stds_start] = valid_stds_p_prime(i)
+        train_stds_derives_cnt[i-stds_start] = train_stds_p_prime(i)
+
+    # Get stage 
+    if (valid_stds_derives_cnt > 0).all() and (train_stds_derives_cnt < 0).all():
+        return "1"
+    elif (np.abs(valid_stds_derives_cnt) < converge_threshold).all() \
+          and (np.abs(train_stds_derives_cnt) < converge_threshold).all():
+        return "3"
+    elif (valid_stds_derives_cnt <= 0).all() and (train_stds_derives_cnt <= 0).all():
+        if (valid_std_devs[-window_size: -1] > train_std_devs[-window_size: -1]).any():
+           # check for consecutive stds, if any std.valid > std.train, use training loss
+           return "2.1" 
+        else:
+           # if std.valid <= std.train for a period of time, use validation loss
+           return "2.2"
+    elif (np.abs(train_stds_derives_cnt) < converge_threshold).all() \
+        and (train_loss_derives_cnt <= 0).all() and (valid_loss_derives_cnt >= 0).all():
+        # overfit!
+        return "4"
+    else:
+        return "unknown"
 
 def check_stage(dataset, epoch, stage=2): # epoch start from 1
     if epoch == 0:
@@ -24,6 +107,20 @@ def check_stage(dataset, epoch, stage=2): # epoch start from 1
         if stg - 1 > len(change_pts):
             # only support stage 3 in LCBench
             raise ValueError(f"Only support stage 3 in LCBench.")
+    elif dataset == "Pybnn_Boston":
+        change_pts = [2385, 5500]
+    elif "Pybnn_Protein" or "Pybnn_Toy" in dataset:
+        change_pts = [5000]
+        stg -= 1
+        if stg - 1 > len(change_pts):
+            # only support stage 3 in Pybnn_Protein
+            raise ValueError(f"Only support stage 3 in Pybnn_Protein.")
+    elif "NN" in dataset:
+        change_pts = [75]
+        stg -= 1
+        if stg - 1 > len(change_pts):
+            # only support stage 3 in NN
+            raise ValueError(f"Only support stage 3 in NN.")
     else:
         raise ValueError(f"Unknown datasest {dataset}.")
 
@@ -32,15 +129,24 @@ def check_stage(dataset, epoch, stage=2): # epoch start from 1
     else:
         raise ValueError(f"Do not support stage {stage}.")
 
-def get_seeds():
-    return [777, 888, 999]
+def get_seeds(dataset):
+    if dataset in ["Cifar10", "Cifar100", "ImageNet"]:
+        return [777, 888, 999]
+    elif "NN" or "Pybnn" in dataset:
+        if "Protein" in dataset:
+            return [1, 5]
+        return [1, 5, 10]
 
 def get_window_size(dataset):
     if dataset in ["Cifar10", "Cifar100", "ImageNet"]:
         return 5
     elif dataset in ["Fashion-MNIST", "jasmine", "vehicle",
                      "adult", "higgs", "volkert"]:
+        return 3
+    elif "NN" in dataset:
         return 2
+    elif "Pybnn" in dataset:
+        return 5
     else:
         raise ValueError(f"Unknown dataset {dataset}.")
 
@@ -55,10 +161,13 @@ def get_cta_dir(task):
     elif task == 'loss':
         criterias = ['train_losses', 'valid_losses']
         direction = ['Min', 'Min']
+    elif task == 'stage_adp_loss':
+        criterias = ['stage_adp_loss']
+        direction = ['Min']
     elif task == 'adp_stage_loss_nsb':
         criterias = ['stage_2_loss', 'stage_3_loss']    # change to val loss at stage 2 or stage 3
         direction = ['Min', 'Min']
-    elif task == 'adp_stage_loss_lcb':
+    elif task == 'adp_stage_loss_lcb' or task == 'adp_stage_loss_3':
         criterias = ['stage_3_loss']    # change to val loss at stage 3
         direction = ['Min']
     elif task == "loss_seed":
@@ -70,10 +179,12 @@ def get_cta_dir(task):
     elif task == "stage_win_loss_nsb":
         criterias = ['stage_2_win_loss', 'stage_3_win_loss']
         direction = ['Min', 'Min']
-    elif task == "stage_win_loss_lcb":
-        criterias = ['stage_3_win_loss', 'stage_3_win_train_loss'] 
-        # stage_3_win_loss means stage 3 use validtion loss to compute window smoothing metric
-        # stage_3_win_train_loss means stage 3 use training loss to compute window smoothing metric
+    elif task == "std_win_2_valid_loss":
+        # start from training loss, only turn to validation loss if the std. of valid. <= std. of train.
+        criterias = ['std_win_2_valid_loss'] 
+        direction = ['Min']
+    elif task == "stage_win_loss_lcb2":
+        criterias = ['stage_3_win_loss', 'stage_3_win_train_loss']
         direction = ['Min', 'Min']
     elif task == "stage_loss_seed_nsb":
         criterias = ['stage_2_loss_seed', 'stage_3_loss_seed']
