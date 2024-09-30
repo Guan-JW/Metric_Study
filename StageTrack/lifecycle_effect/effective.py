@@ -80,12 +80,9 @@ subfigs2.set_xlabel("Budget", fontsize=fontsize)
 subfigs2.ticklabel_format(style='sci', axis='x', scilimits=(0,0))
 
 for d, dataset in enumerate(["ImageNet", "Fashion-MNIST", "NN_7592", "Pybnn_Boston"]):
-    print(f" ================ {dataset} ==================")
     # value_list = range(interval, max_iter, interval)
     max_iter, interval, eta, obj = get_meta(dataset)
-    print(f"{eta=}")
     value_list = range(max_iter - interval, 0, -interval)
-    print(f"{value_list=}")
 
     if task == "loss":
         mean_array = np.zeros((2, len(value_list)))
@@ -154,8 +151,6 @@ for d, dataset in enumerate(["ImageNet", "Fashion-MNIST", "NN_7592", "Pybnn_Bost
                 zero_cnt = np.sum(diff < np.max(df_loss.iloc[:, 0].values) * 0.015)
 
 
-            # print(f"{diff.shape=}")
-
             dmean = np.mean(diff)
             dstd = np.std(diff)
             dmax = np.max(diff)
@@ -175,7 +170,7 @@ for d, dataset in enumerate(["ImageNet", "Fashion-MNIST", "NN_7592", "Pybnn_Bost
         while (esp > stage_3_start_point):
             esp /= eta
             stg3_esp_list.append(esp)
-            # print(f"{esp=}, {stg3_esp_list=}")
+
         if len(stg3_esp_list) > max_stg3_esp_cnt:
             max_stg3_esp_cnt = len(stg3_esp_list)
             stg3_points.append(v)
@@ -229,12 +224,10 @@ for d, dataset in enumerate(["ImageNet", "Fashion-MNIST", "NN_7592", "Pybnn_Bost
         ax.plot(value_list, mean_array[0, : -no_result_cnt], label = "Train. loss", color='#1f77b4')
         ax.plot(value_list, mean_array[1, : -no_result_cnt], label = "Valid. loss", color='#9467bd')
         ax.fill_between(value_list, 
-                        # mean_array[0, : -no_result_cnt] - std_array[0, : -no_result_cnt], 
                             min_array[0, : -no_result_cnt], 
                             mean_array[0, : -no_result_cnt] + std_array[0, : -no_result_cnt], 
                             alpha=0.5, color='#1f77b4')
         ax.fill_between(value_list, 
-                            # mean_array[1, : -no_result_cnt] - std_array[1, : -no_result_cnt], 
                             min_array[1, : -no_result_cnt], 
                             mean_array[1, : -no_result_cnt] + std_array[1, : -no_result_cnt], 
                             alpha=0.5, color='#9467bd')
@@ -248,15 +241,6 @@ for d, dataset in enumerate(["ImageNet", "Fashion-MNIST", "NN_7592", "Pybnn_Bost
                             alpha=0.3, color='#9467bd')
         ax.legend()
     else:
-        print(f"{mean_array[: -no_result_cnt].shape=}")
-        if obj == 'test_loss':
-            mean_array[: -no_result_cnt][27:] /= 10
-            min_array[: -no_result_cnt][20:] /= 10
-            max_array[: -no_result_cnt][30:] /= 2
-            std_array[: -no_result_cnt][30:] /= 2
-            likelihood_array[: -no_result_cnt][27:] = np.max(likelihood_array)
-            likelihood_array[: -no_result_cnt][:5] = np.min(likelihood_array)
-            likelihood_array[: -no_result_cnt][17:19] *= 2
         ax.plot(value_list, mean_array[: -no_result_cnt], color='#0077b4', lw=1.7, label="Mean")
         ax.fill_between(value_list, 
                             # mean_array[: -no_result_cnt] - std_array[: -no_result_cnt], 
@@ -274,18 +258,10 @@ for d, dataset in enumerate(["ImageNet", "Fashion-MNIST", "NN_7592", "Pybnn_Bost
             
         # possibility
         ax_twin = ax.twinx()
-        if d==0:
-            likelihood_array[: -no_result_cnt][-5] = 0.67
-            likelihood_array[: -no_result_cnt][-4] = 0.66
-            likelihood_array[: -no_result_cnt][-3] = 0.65
-            likelihood_array[: -no_result_cnt][-2] = 0.66
-            likelihood_array[: -no_result_cnt][-1] = 0.65
         ax_twin.plot(value_list, likelihood_array[: -no_result_cnt], color='red', lw=1.4, label="Prob. best")
-        print(f"{likelihood_array[: -no_result_cnt]=}")
         
         if d == 0:
             current_ylim = ax_twin.get_ylim()
-            print(f"{current_ylim=}")
             ax_twin.set_ylim(0.42, current_ylim[1]+0.02)
         if d >= 2:
             ax_twin.set_ylabel("Probability", fontsize=fontsize)
